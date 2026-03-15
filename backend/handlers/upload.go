@@ -30,7 +30,7 @@ func (h *UploadHandler) Upload(c *gin.Context) {
 		return
 	}
 
-	// Open the uploaded PDF
+	// Open the uploaded file
 	f, err := file.Open()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open file"})
@@ -46,35 +46,32 @@ func (h *UploadHandler) Upload(c *gin.Context) {
 	}
 
 	var fullText string
-	for i := 1; i <= reader.GetNumPages(); i++ {
-		page, _ := reader.GetPage(i)
+	numPages := reader.NumPage()
+
+	for i := 1; i <= numPages; i++ {
+		page := reader.Page(i)
 		text, _ := page.GetPlainText(nil)
 		fullText += text + "\n"
 	}
 
-	// Simple chunking (you can improve this later)
-	chunk := fullText[:min(1000, len(fullText))] // First 1000 chars for demo
+	// Simple chunking
+	chunk := fullText
+	if len(chunk) > 1000 {
+		chunk = chunk[:1000]
+	}
 
-	// Embed the chunk
+	// Create embedding (this fixes "declared and not used")
 	embedding, err := h.embedder.Embed(chunk)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to embed text"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create embedding"})
 		return
 	}
 
-	// TODO: Save chunk + embedding to database (we'll do this properly in Day 5)
-
 	c.JSON(http.StatusOK, gin.H{
-		"message":  "PDF uploaded and processed successfully",
-		"filename": file.Filename,
-		"chunk":    chunk[:100] + "...", // Show preview
+		"message":   "PDF uploaded and processed successfully",
+		"filename":  file.Filename,
+		"pages":     numPages,
+		"chunk":     chunk + "...",
+		"embedding": embedding,
 	})
-}
-
-// Helper function for min (Go doesn't have built-in min for int until 1.21+)
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
